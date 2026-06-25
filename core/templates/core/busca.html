@@ -60,7 +60,6 @@
                 </div>
             </div>
 
-            <!-- MODAL NOVA PASTA -->
             <div class="modal fade" id="modalNovaPasta" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog">
                     <form method="POST" action="{% url 'criar_subpasta' %}">
@@ -104,7 +103,9 @@
                                         {% if arquivo.tipo == 'pasta' %}
                                             <i class="bi bi-folder-fill text-warning me-2"></i><strong>{{ arquivo.nome }}</strong>
                                         {% elif arquivo.tipo == 'pdf' %}
-                                            <i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>{{ arquivo.nome }}
+                                            <span class="text-dark">
+                                                <i class="bi bi-file-earmark-pdf text-danger me-1"></i> {{ arquivo.nome }}
+                                            </span>
                                         {% elif arquivo.tipo == 'excel' %}
                                             <i class="bi bi-file-earmark-excel-fill text-success me-2"></i>{{ arquivo.nome }}
                                         {% elif arquivo.tipo == 'word' %}
@@ -117,7 +118,11 @@
                                     </td>
                                     <td>{{ arquivo.tamanho }}</td>
                                     <td class="text-end">
-                                        <a href="{% url 'visualizar_arquivo' %}?caminho={{ arquivo.caminho|urlencode }}" target="_blank" class="btn btn-sm btn-outline-primary me-1" title="Visualizar">
+                                        <a href="javascript:void(0);" 
+                                            class="btn-visualizar-pdf btn btn-sm btn-outline-primary" 
+                                            title="Visualizar"
+                                            data-url="{% url 'visualizar_arquivo' %}?caminho={{ arquivo.caminho|urlencode }}" 
+                                            data-nome="{{ arquivo.nome }}">
                                             <i class="bi bi-eye"></i>
                                         </a>
 
@@ -135,7 +140,6 @@
                                     </td>
                                 </tr>
 
-                                <!-- MODAL RENOMEAR -->
                                 <div class="modal fade" id="modalRenomear{{ forloop.counter }}" tabindex="-1" aria-hidden="true">
                                     <div class="modal-dialog">
                                         <form method="POST" action="{% url 'renomear_arquivo' %}">
@@ -160,7 +164,6 @@
                                     </div>
                                 </div>
 
-                                <!-- MODAL APAGAR -->
                                 <div class="modal fade" id="modalApagar{{ forloop.counter }}" tabindex="-1" aria-hidden="true">
                                     <div class="modal-dialog">
                                         <form method="POST" action="{% url 'apagar_arquivo' %}">
@@ -184,7 +187,6 @@
                                         </form>
                                     </div>
                                 </div>
-
                             {% endfor %}
                         </tbody>
                     </table>

@@ -166,12 +166,20 @@
                             <td>{{ item.tamanho }}</td>
                             <td class="text-end">
                                 {% if item.tipo != 'pasta' %}
-                                <a href="{% url 'visualizar_arquivo' %}?caminho={{ item.caminho|urlencode }}" target="_blank" class="btn btn-sm btn-outline-primary me-1" title="Visualizar">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                                <a href="{% url 'baixar_arquivo' %}?caminho={{ item.caminho|urlencode }}" class="btn btn-sm btn-outline-success me-1" title="Baixar">
-                                    <i class="bi bi-download"></i>
-                                </a>
+                                    {% comment %} Condição para exibir o botão de visualizar apenas para visualizáveis {% endcomment %}
+                                    {% if item.nome|lower|slice:"-4:" == ".pdf" or item.nome|lower|slice:"-4:" == ".jpg" or item.nome|lower|slice:"-5:" == ".jpeg" or item.nome|lower|slice:"-4:" == ".png" %}
+                                        <a href="javascript:void(0);" 
+                                            class="btn-visualizar-pdf btn btn-sm btn-outline-primary me-1" 
+                                            title="Visualizar"
+                                            data-url="{% url 'visualizar_arquivo' %}?caminho={{ item.caminho|urlencode }}" 
+                                            data-nome="{{ item.nome }}">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    {% endif %}
+
+                                    <a href="{% url 'baixar_arquivo' %}?caminho={{ item.caminho|urlencode }}" class="btn btn-sm btn-outline-success me-1" title="Baixar">
+                                        <i class="bi bi-download"></i>
+                                    </a>
                                 {% endif %}
 
                                 <button type="button" class="btn btn-sm btn-outline-warning me-1" data-bs-toggle="modal" data-bs-target="#modalRenomearGeral{{ forloop.counter }}" title="Renomear">

@@ -170,6 +170,67 @@
             </div>
         </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <div class="modal fade" id="modalPDF" tabindex="-1" aria-labelledby="modalPDFLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title fw-bold" id="modalPDFLabel">
+                            <i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i> Visualizando Documento
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body p-0" style="height: 80vh;">
+                        <iframe id="iframePDF" src="" width="100%" height="100%" style="border: none;"></iframe>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary fw-semibold btn-sm" data-bs-dismiss="modal">Fechar</button>
+                        <a id="btnBaixarPDF" href="" class="btn btn-primary fw-semibold btn-sm">
+                            <i class="bi bi-download me-1"></i> Baixar Arquivo
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Usar delegação de eventos captura o clique mesmo se a tabela demorar para carregar
+            document.body.addEventListener("click", function(e) {
+                const botaoOlho = e.target.closest(".btn-visualizar-pdf");
+                
+                if (botaoOlho) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const urlArquivo = botaoOlho.getAttribute("data-url");
+                    const nomeArquivo = botaoOlho.getAttribute("data-nome");
+
+                    const iframePDF = document.getElementById("iframePDF");
+                    const modalLabel = document.getElementById("modalPDFLabel");
+                    const btnBaixarPDF = document.getElementById("btnBaixarPDF");
+                    const modalElemento = document.getElementById('modalPDF');
+
+                    if (modalElemento) {
+                        modalLabel.innerHTML = `<i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i> ${nomeArquivo}`;
+                        iframePDF.src = urlArquivo;
+                        btnBaixarPDF.href = urlArquivo;
+
+                        const modalInstancia = bootstrap.Modal.getOrCreateInstance(modalElemento);
+                        modalInstancia.show();
+                    }
+                }
+            });
+
+            const modalElemento = document.getElementById('modalPDF');
+            if (modalElemento) {
+                modalElemento.addEventListener('hidden.bs.modal', function () {
+                    document.getElementById("iframePDF").src = "";
+                });
+            }
+        });
+        </script>
+
+        <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
     </body>
 </html>

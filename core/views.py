@@ -5,19 +5,20 @@ import urllib.parse
 import re
 import json
 
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.db.models import Q
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, redirect
 from django.conf import settings
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.contrib import messages
 from django.core.files.storage import FileSystemStorage
 from django.views.decorators.csrf import csrf_protect
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import JsonResponse
 from django.core.exceptions import ValidationError
+
 
 from datetime import datetime
 
@@ -117,20 +118,35 @@ def busca_crf(request):
     }
     return render(request, 'core/busca.html', contexto)
 
+@xframe_options_exempt
 @login_required
 def visualizar_arquivo(request):
-    caminho_completo = request.GET.get('caminho', '')
-    caminho_final = urllib.parse.unquote(caminho_completo)
+    caminho_usuario = request.GET.get('caminho', '')
+    
+    try:
+        # Tenta validar o caminho
+        caminho_seguro = validar_caminho_seguro(caminho_usuario)
+    except PermissionDenied:
+        # Se for um ataque ou tentativa de sair da pasta, cai aqui
+        return HttpResponse("Acesso negado: Tentativa de invasão detectada.", status=403)
 
-    # Injeção do Passo 12.2
-    validar_caminho_seguro(caminho_final)
+    # Verifica se o arquivo existe após validar o caminho
+    if not os.path.exists(caminho_seguro):
+        raise Http404("Arquivo não encontrado.")
     
-    if os.path.exists(caminho_final) and "ged_teste" in caminho_final:
-        content_type, _ = mimetypes.guess_type(caminho_final)
-        arquivo = open(caminho_final, 'rb')
-        return FileResponse(arquivo, content_type=content_type)
+    # O caminho vem do link que montamos no HTML
+    caminho_arquivo = request.GET.get('caminho', '')
     
-    raise Http404("Arquivo não encontrado.")
+    # IMPORTANTE: Garanta que o caminho seja absoluto e seguro
+    # Ajuste o caminho base se o seu projeto usa outra pasta raiz
+    if os.path.exists(caminho_arquivo):
+        with open(caminho_arquivo, 'rb') as pdf:
+            response = HttpResponse(pdf.read(), content_type='application/pdf')
+            # 'inline' força o navegador a abrir no visualizador, não baixar
+            response['Content-Disposition'] = 'inline; filename="%s"' % os.path.basename(caminho_arquivo)
+            return response
+    
+    raise Http404("Arquivo não encontrado no servidor.")
 
 @login_required
 def baixar_arquivo(request):
@@ -825,3 +841,24 @@ def validar_nome_seguro(nome_item, eh_arquivo=False):
         if extensao in extensoes_proibidas:
             raise ValidationError(f"Arquivos com a extensão '{extensao}' são bloqueados por motivos de segurança.")
         
+def validar_caminho_seguro(caminho_solicitado):
+    # Se o caminho for vazio, é a raiz do GED, permitido
+    if not caminho_solicitado:
+        return os.path.abspath(settings.MEDIA_ROOT)
+    
+    # Se o caminho for apenas um nome de pasta (sem '../'), permitimos
+    # Isso resolve o problema de módulos como 'pessoa-fisica' ou 'setores'
+    if '..' not in caminho_solicitado:
+        # Se for um nome simples, apenas checamos se existe
+        caminho_alvo = os.path.abspath(os.path.join(settings.MEDIA_ROOT, caminho_solicitado))
+        return caminho_alvo
+
+    # Se contiver '..', aí sim aplicamos a regra rígida de segurança
+    base_dir = os.path.abspath(settings.MEDIA_ROOT)
+    caminho_alvo = os.path.abspath(os.path.join(base_dir, caminho_solicitado))
+    
+    if not caminho_alvo.startswith(base_dir):
+        raise PermissionDenied("Acesso a pasta não autorizada!")
+    
+    return caminho_alvo
+
