@@ -2,7 +2,10 @@ import os
 import mimetypes
 import shutil
 import urllib.parse
+import re
+import json
 
+from django.db.models import Q
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, redirect
@@ -12,6 +15,9 @@ from django.contrib import messages
 from django.core.files.storage import FileSystemStorage
 from django.views.decorators.csrf import csrf_protect
 from django.utils import timezone
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.http import JsonResponse
+from django.core.exceptions import ValidationError
 
 from datetime import datetime
 
@@ -34,22 +40,31 @@ def validar_caminho_seguro(caminho_alvo):
     # Define os caminhos permitidos no HD
     ged_raiz = os.path.realpath(settings.GED_BASE_DIR)
     setores_raiz = os.path.realpath(os.path.join(os.path.dirname(settings.GED_BASE_DIR), 'setores'))
+    lixeira_raiz = os.path.realpath(os.path.join(os.path.dirname(settings.GED_BASE_DIR), 'lixeira')) # INCLUÍDO
     
-    # Verifica se o caminho solicitado começa com a raiz do GED ou dos Setores
-    if caminho_real.startswith(ged_raiz) or caminho_real.startswith(setores_raiz):
+    # Verifica se o caminho solicitado começa com a raiz do GED, dos Setores ou da Lixeira
+    if caminho_real.startswith(ged_raiz) or caminho_real.startswith(setores_raiz) or caminho_real.startswith(lixeira_raiz):
         return True
         
-    # Se não estiver em nenhum dos dois, levanta um erro de segurança do Django
+    # Se não estiver em nenhum dos locais permitidos, levanta o erro de segurança
+    raise PermissionDenied("Acesso negado: Tentativa de violação de diretório detectada.")
     raise PermissionDenied("Acesso negado: Tentativa de violação de diretório detectada.")
 
 
 # ==========================================
 # VIEWS DO SISTEMA
 # ==========================================
-
+@login_required
 def inicio(request):
     return render(request, 'core/inicio.html')
 
+def pagina_inicial_direcionamento(request):
+    """Se logado, vai para o painel. Se não, vai para o login."""
+    if request.user.is_authenticated:
+        return redirect('painel_controle')  # Coloque o name da sua view do painel
+    return redirect('login')  # Coloque o name da sua view de login (ou auth_login)
+
+@login_required
 def busca_crf(request):
     termo_busca = request.GET.get('crf', '').strip()
     resultados = []
@@ -102,6 +117,7 @@ def busca_crf(request):
     }
     return render(request, 'core/busca.html', contexto)
 
+@login_required
 def visualizar_arquivo(request):
     caminho_completo = request.GET.get('caminho', '')
     caminho_final = urllib.parse.unquote(caminho_completo)
@@ -116,6 +132,7 @@ def visualizar_arquivo(request):
     
     raise Http404("Arquivo não encontrado.")
 
+@login_required
 def baixar_arquivo(request):
     caminho_completo = request.GET.get('caminho', '')
     caminho_final = urllib.parse.unquote(caminho_completo)
@@ -129,6 +146,7 @@ def baixar_arquivo(request):
     
     raise Http404("Arquivo não encontrado.")
 
+@login_required
 def renomear_arquivo(request):
     if request.method == 'POST':
         caminho_atual = request.POST.get('caminho_atual', '')
@@ -162,6 +180,7 @@ def renomear_arquivo(request):
             
         return redirect(f"/busca/?crf={crf}")
 
+@login_required
 def apagar_arquivo(request):
     if request.method == 'POST':
         caminho_atual = request.POST.get('caminho_atual', '').strip()
@@ -215,6 +234,7 @@ def apagar_arquivo(request):
 
         return redirect(f"/busca/?crf={crf}")
 
+@login_required
 def upload_arquivo(request):
     if request.method == 'POST' and request.FILES.get('arquivo_novo'):
         crf = request.POST.get('crf', '').strip()
@@ -245,6 +265,7 @@ def upload_arquivo(request):
     messages.error(request, "Nenhum arquivo foi selecionado.")
     return redirect('inicio')
 
+@login_required
 def upload_arquivo_geral(request):
     if request.method == 'POST' and request.FILES.get('arquivo'):
         arquivo = request.FILES['arquivo']
@@ -273,36 +294,47 @@ def upload_arquivo_geral(request):
     messages.error(request, "Nenhum arquivo enviado.")
     return redirect('/')
 
+@login_required
+@csrf_protect
 def criar_subpasta(request):
     if request.method == 'POST':
         caminho_atual = request.POST.get('caminho_atual', '').strip()
         nome_pasta = request.POST.get('nome_pasta', '').strip()
         url_retorno = request.POST.get('url_retorno', '/')
 
-        # Injeção do Passo 12.2
         validar_caminho_seguro(caminho_atual)
 
         if "ged_teste" in caminho_atual:
+            # Remove caracteres ilegais para evitar falhas de SO
             for caractere in ['/', '\\', ':', '*', '?', '"', '<', '>', '|']:
                 nome_pasta = nome_pasta.replace(caractere, '')
+
+            if nome_pasta == "":
+                messages.error(request, "O nome da pasta não pode ser vazio.")
+                return redirect(request.META.get('HTTP_REFERER', 'inicio'))
+
+            # --- VALIDAÇÃO DE NOME RESERVADO (WINDOWS) ANTES DA CRIAÇÃO ---
+            try:
+                validar_nome_seguro(nome_pasta, eh_arquivo=False)
+            except ValidationError as e:
+                messages.error(request, str(e))
+                return redirect(request.META.get('HTTP_REFERER', 'inicio'))
 
             caminho_nova_pasta = os.path.join(caminho_atual, nome_pasta)
 
             if os.path.exists(caminho_nova_pasta):
                 messages.error(request, f"A subpasta '{nome_pasta}' já existe neste local!")
-            elif nome_pasta == "":
-                messages.error(request, "O nome da pasta não pode ser vazio.")
             else:
                 try:
-                    os.makedirs(caminho_nova_pasta)
-                    messages.success(request, f"Subpasta '{nome_pasta}' criada com sucesso!")
+                    os.makedirs(caminova_pasta)
+                    messages.success(request, f"Pasta '{nome_pasta}' criada com sucesso!")
                 except Exception as e:
-                    messages.error(request, f"Erro ao criar pasta no servidor: {str(e)}")
-        else:
-            messages.error(request, "Diretório não autorizado.")
+                    messages.error(request, f"Erro ao criar diretório físico: {str(e)}")
+                    
+            return redirect(request.META.get('HTTP_REFERER', 'inicio'))
 
-        return redirect(url_retorno)
-
+@login_required
+@csrf_protect
 def navegar_pastas(request, modulo):
     if modulo == 'pessoa-fisica':
         raiz_modulo = os.path.join(settings.GED_BASE_DIR, 'pessoa fisica')
@@ -319,7 +351,6 @@ def navegar_pastas(request, modulo):
     caminho_subpasta = request.GET.get('pasta', '').strip()
     caminho_atual = urllib.parse.unquote(caminho_subpasta) if caminho_subpasta else raiz_modulo
 
-    # Injeção do Passo 12.2
     validar_caminho_seguro(caminho_atual)
 
     if not caminho_atual.startswith(raiz_modulo):
@@ -327,6 +358,11 @@ def navegar_pastas(request, modulo):
 
     if not os.path.exists(caminho_atual):
         os.makedirs(caminho_atual)
+
+    # --- NOVA INTELIGÊNCIA: Verifica de forma definitiva se o usuário está na pasta raiz do módulo ---
+    caminho_normalizado = os.path.normpath(caminho_atual)
+    raiz_modulo_normalizada = os.path.normpath(raiz_modulo)
+    usuario_esta_na_raiz = (caminho_normalizado == raiz_modulo_normalizada)
 
     usuario_grupos = [grupo.name.lower() for grupo in request.user.groups.all()]
     if modulo == 'setores' and not request.user.is_superuser:
@@ -338,8 +374,16 @@ def navegar_pastas(request, modulo):
                     break
             if pasta_autorizada:
                 caminho_atual = pasta_autorizada
+                # Se o usuário comum foi redirecionado para a subpasta do setor dele, ele NÃO está na raiz geral
+                usuario_esta_na_raiz = False 
             else:
-                return render(request, 'core/navegar.html', {'modulo': modulo, 'titulo': titulo_base, 'resultados': [], 'caminho_pasta_atual': caminho_atual})
+                return render(request, 'core/navegar.html', {
+                    'modulo': modulo, 
+                    'titulo': titulo_base, 
+                    'resultados': [], 
+                    'caminho_pasta_atual': caminho_atual,
+                    'usuario_esta_na_raiz': True
+                })
 
     pastas_lista = []
     arquivos_lista = []
@@ -396,9 +440,12 @@ def navegar_pastas(request, modulo):
         'partes_pasta': partes_pasta,
         'titulo_base': titulo_base,
         'por_pagina': itens_por_pagina,
+        'usuario_esta_na_raiz': usuario_esta_na_raiz,  # <-- Enviado com sucesso para o template!
     }
     return render(request, 'core/navegar.html', contexto)
 
+@login_required
+@user_passes_test(lambda u: u.is_superuser, login_url='inicio')
 def ver_lixeira(request):
     """Exibe os arquivos e pastas que estão na lixeira física do sistema com filtros"""
     pasta_lixeira = os.path.join(os.path.dirname(settings.GED_BASE_DIR), 'lixeira')
@@ -464,21 +511,26 @@ def ver_lixeira(request):
         'filtro_tipo': filtro_tipo
     })
 
+@login_required
+@user_passes_test(lambda u: u.is_superuser, login_url='inicio')
 @csrf_protect
 def restaurar_arquivo(request):
     """Move o arquivo ou pasta da lixeira de volta para a sua origem exata"""
     if request.method == 'POST':
-        # Recebe apenas o nome puro do item vindo do formulário do template
-        nome_item = request.POST.get('caminho_lixeira', '').strip()
+        # Captura o que veio do formulário (pode vir o caminho ou apenas o nome)
+        dado_recebido = request.POST.get('caminho_lixeira', '').strip()
         
-        # Monta o caminho absoluto correto dentro da pasta lixeira do servidor
+        # Extrai APENAS o nome do arquivo/pasta (ex: 'aaaaa.pdf'), ignorando caminhos do Windows
+        nome_item = os.path.basename(dado_recebido)
+        
+        # Monta o caminho absoluto correto dentro da lixeira do servidor
         pasta_lixeira = os.path.join(os.path.dirname(settings.GED_BASE_DIR), 'lixeira')
         caminho_lixeira = os.path.normpath(os.path.join(pasta_lixeira, nome_item))
         
-        # Agora a validação de caminho seguro vai passar perfeitamente!
+        # Valida o caminho físico na lixeira
         validar_caminho_seguro(caminho_lixeira)
 
-        # Busca na auditoria usando o nome exato que configuramos na view de apagar
+        # Busca na auditoria usando o nome limpo do arquivo
         log = LogAuditoria.objects.filter(acao='APAGAR', descricao=nome_item).first()
         
         if log and log.caminho_item:
@@ -490,11 +542,11 @@ def restaurar_arquivo(request):
                 os.makedirs(pasta_destino)
                 
             try:
-                # Move o arquivo ou pasta inteira de volta
+                # Move o arquivo ou pasta de volta
                 shutil.move(caminho_lixeira, caminho_original)
                 messages.success(request, f"'{nome_item}' restaurado com sucesso para a pasta de origem!")
                 
-                # Grava o log da restauração mantendo o padrão limpo
+                # Grava o log da restauração
                 LogAuditoria.objects.create(
                     usuario=request.user,
                     acao='UPLOAD', 
@@ -507,3 +559,269 @@ def restaurar_arquivo(request):
             messages.error(request, f"Não encontramos o histórico de origem de '{nome_item}' no banco de dados.")
             
     return redirect('ver_lixeira')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser, login_url='inicio')
+def ver_auditoria(request):
+    """Exibe o histórico completo de ações realizadas no sistema (Logs de Auditoria)"""
+    if not request.user.is_authenticated:
+        return redirect('inicio')
+        
+    filtro_busca = request.GET.get('busca', '').strip()
+    filtro_acao = request.GET.get('acao', '').strip()
+    
+    logs = LogAuditoria.objects.all().order_by('-data_hora')
+    
+    # Busca combinada corrigida usando Q
+    if filtro_busca:
+        logs = logs.filter(
+            Q(usuario__username__icontains=filtro_busca) | 
+            Q(descricao__icontains=filtro_busca)
+        )
+        
+    if filtro_acao:
+        logs = logs.filter(acao=filtro_acao)
+        
+    paginator = Paginator(logs, 50)
+    num_pagina = request.GET.get('page', 1)
+    pagina_logs = paginator.get_page(num_pagina)
+    
+    contexto = {
+        'logs': pagina_logs,
+        'filtro_busca': filtro_busca,
+        'filtro_acao': filtro_acao,
+    }
+    return render(request, 'core/auditoria.html', contexto)
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser, login_url='inicio')
+@csrf_protect
+def esvaziar_lixeira(request):
+    """Apaga permanentemente todos os arquivos e pastas que estão na lixeira física"""
+    if request.method == 'POST':
+        # Só permite que superusuários façam a exclusão definitiva
+        if not request.user.is_superuser:
+            messages.error(request, "Acesso negado: Apenas administradores podem esvaziar a lixeira.")
+            return redirect('ver_lixeira')
+
+        pasta_lixeira = os.path.join(os.path.dirname(settings.GED_BASE_DIR), 'lixeira')
+        
+        if os.path.exists(pasta_lixeira):
+            try:
+                contador_itens = 0
+                # Varre a pasta para apagar item por item e poder contar
+                for item in os.listdir(pasta_lixeira):
+                    caminho_completo = os.path.join(pasta_lixeira, item)
+                    
+                    # Garante que não vai sair deletando caminhos fora da lixeira por acidente
+                    validar_caminho_seguro(caminho_completo)
+                    
+                    if os.path.isfile(caminho_completo) or os.path.islink(caminho_completo):
+                        os.unlink(caminho_completo)
+                    elif os.path.isdir(caminho_completo):
+                        shutil.rmtree(caminho_completo)
+                    
+                    contador_itens += 1
+
+                # Registra na auditoria que a lixeira foi limpa
+                LogAuditoria.objects.create(
+                    usuario=request.user,
+                    acao='APAGAR',
+                    descricao=f"Lixeira esvaziada completamente ({contador_itens} itens removidos).",
+                    caminho_item=pasta_lixeira
+                )
+
+                if contador_itens > 0:
+                    messages.success(request, f"Sucesso! A lixeira foi esvaziada e {contador_itens} itens foram apagados permanentemente do HD.")
+                else:
+                    messages.info(request, "A lixeira já estava vazia.")
+
+            except Exception as e:
+                messages.error(request, f"Erro físico ao esvaziar a lixeira: {str(e)}")
+        else:
+            messages.error(request, "Pasta da lixeira não encontrada no servidor.")
+
+    return redirect('ver_lixeira')
+
+@login_required
+@csrf_protect
+def upload_multiplo_ajax(request):
+    """Recebe arquivos via AJAX do Dropzone e salva no diretório atual com travas de segurança"""
+    if request.method == 'POST' and request.FILES.get('file'):
+        arquivo = request.FILES['file']
+        caminho_pasta_atual = request.POST.get('caminho_atual')
+
+        # --- NOVA TRAVA: Impedir Upload na Raiz ---
+        # Verifica se o caminho atual termina exatamente na pasta raiz dos módulos
+        caminho_normalizado = os.path.normpath(caminho_pasta_atual)
+        base_ged = os.path.normpath(settings.GED_BASE_DIR)
+        
+        # Lista as pastas raízes permitidas (ex: C:\ged_teste\pessoa-fisica)
+        raizes_bloqueadas = [
+            os.path.join(base_ged, 'pessoa-fisica'),
+            os.path.join(base_ged, 'pessoa-juridica'),
+            os.path.join(base_ged, 'setores')
+        ]
+        
+        if caminho_normalizado in raizes_bloqueadas:
+            return JsonResponse({'error': 'Não é permitido fazer upload de arquivos diretamente na raiz deste módulo. Crie ou acesse uma pasta primeiro.'}, status=403)
+
+        # Trava de Segurança de Path Traversal anterior
+        try:
+            validar_caminho_seguro(caminho_pasta_atual)
+        except PermissionDenied as e:
+            return JsonResponse({'error': str(e)}, status=403)
+
+        # --- NOVA TRAVA: Validar Extensão e Nome Reservado Windows ---
+        try:
+            validar_nome_seguro(arquivo.name, eh_arquivo=True)
+        except ValidationError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        if not caminho_pasta_atual or not os.path.exists(caminho_pasta_atual):
+            return JsonResponse({'error': 'Diretório de destino inválido.'}, status=400)
+
+        caminho_final = os.path.join(caminho_pasta_atual, arquivo.name)
+
+        if os.path.exists(caminho_final):
+            return JsonResponse({'error': f"O arquivo '{arquivo.name}' já existe nesta pasta."}, status=400)
+
+        try:
+            with open(caminho_final, 'wb+') as destination:
+                for chunk in arquivo.chunks():
+                    destination.write(chunk)
+            
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                acao='UPLOAD',
+                descricao=arquivo.name,
+                caminho_item=caminho_final
+            )
+            return JsonResponse({'message': 'Sucesso!'}, status=200)
+        except Exception as e:
+            return JsonResponse({'error': f"Erro ao salvar arquivo: {str(e)}"}, status=500)
+            
+    return JsonResponse({'error': 'Nenhum arquivo enviado.'}, status=400)
+
+@login_required
+@csrf_protect
+def excluir_multiplos_ajax(request):
+    """Move múltiplos arquivos ou pastas para uma lixeira segura e auditada"""
+    
+    # TRAVA 1: Controle de Permissão por Grupo
+    # Permite apenas usuários do grupo 'GED_Administrador' ou superusuários do sistema
+    if not request.user.groups.filter(name='GED_Administrador').exists() and not request.user.is_superuser:
+        return JsonResponse({
+            'error': 'Operação não permitida. Apenas administradores do GED podem excluir itens.'
+        }, status=403)
+
+    if request.method == 'POST':
+        try:
+            dados = json.loads(request.body)
+            itens_para_excluir = dados.get('itens', [])
+            
+            if not itens_para_excluir:
+                return JsonResponse({'error': 'Nenhum item foi selecionado.'}, status=400)
+                
+            sucessos = 0
+            erros = 0
+            ultimo_erro = ""
+            
+            # Define o caminho base da lixeira (ajuste o caminho base se necessário)
+            # Mantendo o padrão do seu ambiente Windows C:\ged_teste
+            DIRETORIO_RAIZ = r"C:\ged_teste"
+            PASTA_LIXEIRA = os.path.join(DIRETORIO_RAIZ, ".lixeira")
+            
+            # Garante que a pasta da lixeira exista fisicamente no HD
+            if not os.path.exists(PASTA_LIXEIRA):
+                os.makedirs(PASTA_LIXEIRA)
+            
+            for caminho_item in itens_para_excluir:
+                try:
+                    validar_caminho_seguro(caminho_item)
+                    
+                    if os.path.exists(caminho_item):
+                        nome_base = os.path.basename(caminho_item)
+                        
+                        # Evita que o usuário tente excluir a própria lixeira
+                        if caminho_item.lower() == PASTA_LIXEIRA.lower():
+                            continue
+                            
+                        # Tratamento de conflito de nomes na lixeira:
+                        # Se arquivo.pdf já existir lá, vira arquivo_20260625_111800.pdf
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%m%S")
+                        nome_destino = nome_base
+                        caminho_destino = os.path.join(PASTA_LIXEIRA, nome_destino)
+                        
+                        if os.path.exists(caminho_destino):
+                            nome_sem_ext, ext = os.path.splitext(nome_base)
+                            nome_destino = f"{nome_sem_ext}_{timestamp}{ext}"
+                            caminho_destino = os.path.join(PASTA_LIXEIRA, nome_destino)
+                        
+                        # --- TRAVA 2: LIXEIRA REAL (shutil.move ao invés de remover) ---
+                        shutil.move(caminho_item, caminho_destino)
+                            
+                        # Registra no Log de Auditoria do CRF-PB
+                        LogAuditoria.objects.create(
+                            usuario=request.user,
+                            acao='EXCLUSAO_MUTIPLA',
+                            descricao=f"Item movido para a lixeira: {nome_base} (Destino: {nome_destino})",
+                            caminho_item=caminho_item
+                        )
+                        sucessos += 1
+                except Exception as e:
+                    erros += 1
+                    ultimo_erro = str(e)
+                    continue
+            
+            # --- FORMATAÇÃO DA MENSAGEM DINÂMICA ---
+            if sucessos == 1:
+                msg_sucesso = "1 item foi movido para a lixeira."
+            elif sucessos > 1:
+                msg_sucesso = f"{sucessos} itens foram movidos para a lixeira."
+            else:
+                msg_sucesso = "Nenhum item foi movido."
+
+            msg_erro = ""
+            if erros > 0:
+                msg_erro = f" Houve {erros} falha{'s' if erros > 1 else ''} no processamento."
+
+            mensagem_final = f"{msg_sucesso}{msg_erro}"
+                    
+            return JsonResponse({
+                'message': mensagem_final,
+                'sucessos': sucessos,
+                'erros': erros,
+                'detalhe_erro': ultimo_erro
+            }, status=200)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Dados JSON inválidos.'}, status=400)
+            
+    return JsonResponse({'error': 'Método não permitido.'}, status=405)
+
+def validar_nome_seguro(nome_item, eh_arquivo=False):
+    """Valida se o nome do arquivo ou pasta é seguro para sistemas Windows e políticas do GED"""
+    
+    # 1. Lista de nomes reservados do Windows (case-insensitive)
+    nomes_reservados = {
+        'CON', 'PRN', 'AUX', 'NUL', 
+        'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+        'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+    }
+    
+    # Extrai o nome sem a extensão para verificar contra os nomes reservados
+    nome_puro = os.path.splitext(nome_item)[0].upper().strip()
+    if nome_puro in nomes_reservados:
+        raise ValidationError(f"O nome '{nome_item}' é reservado pelo sistema operacional Windows e não pode ser usado.")
+    
+    # 2. Lista de extensões perigosas ou bloqueadas (Malwares/Executáveis)
+    if eh_arquivo:
+        extensoes_proibidas = {
+            '.exe', '.bat', '.cmd', '.msi', '.vbs', '.vbe', '.js', '.jse', 
+            '.wsf', '.wsh', '.ps1', '.scr', '.com', '.pif', '.hta', '.sh'
+        }
+        extensao = os.path.splitext(nome_item)[1].lower()
+        if extensao in extensoes_proibidas:
+            raise ValidationError(f"Arquivos com a extensão '{extensao}' são bloqueados por motivos de segurança.")
+        

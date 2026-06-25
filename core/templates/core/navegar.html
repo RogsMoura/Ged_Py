@@ -1,6 +1,27 @@
 {% extends 'core/base.html' %}
 
 {% block conteudo %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/dropzone.min.css" type="text/css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
+
+<style>
+    /* Estilização customizada para a caixa de arrastar ficar bonita */
+    .dropzone-container {
+        border: 2px dashed #3498db !important;
+        background: #f4f6f7 !important;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    .dropzone-container:hover {
+        background: #e8f4f8 !important;
+        border-color: #2980b9 !important;
+    }
+    .dz-message {
+        font-weight: bold;
+        color: #7f8c8d;
+    }
+</style>
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ titulo }}</h1>
 </div>
@@ -62,9 +83,11 @@
                 </select>
             </form>
 
-            <button type="button" class="btn btn-primary text-white fw-bold btn-sm" data-bs-toggle="modal" data-bs-target="#modalUploadGeral">
-                <i class="bi bi-upload me-1"></i> Enviar Arquivo
-            </button>
+            {% if not usuario_esta_na_raiz %}
+                <button type="button" class="btn btn-primary text-white fw-bold btn-sm" data-bs-toggle="modal" data-bs-target="#modalUploadGeral">
+                    <i class="bi bi-upload me-1"></i> Enviar Arquivo
+                </button>
+            {% endif %}
             
             <button type="button" class="btn btn-warning text-dark fw-bold btn-sm" data-bs-toggle="modal" data-bs-target="#modalNovaPastaGeral">
                 <i class="bi bi-folder-plus me-1"></i> Criar Pasta
@@ -73,20 +96,57 @@
     </div>
 </div>
 
+{% if not usuario_esta_na_raiz %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light fw-bold text-secondary">
+            <i class="bi bi-cloud-arrow-up-fill me-1"></i> Enviar Arquivos em Lote (PDF, Imagens, Excel...)
+        </div>
+        <div class="card-body">
+            <form action="{% url 'upload_multiplo_ajax' %}" class="dropzone dropzone-container d-flex align-items-center justify-content-center py-4" id="meuDropzoneLayout">
+                {% csrf_token %}
+                <input type="hidden" name="caminho_atual" value="{{ caminho_pasta_atual }}">
+                
+                <div class="dz-message text-center">
+                    <i class="bi bi-file-earmark-arrow-up text-primary" style="font-size: 2.5rem;"></i>
+                    <p class="mt-2 mb-0">Arraste vários arquivos para cá ou <span class="text-primary" style="cursor: pointer;">clique aqui</span> para selecionar.</p>
+                    <small class="text-muted d-block mt-1">Os arquivos serão salvos diretamente nesta pasta atual do servidor.</small>
+                </div>
+            </form>
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-warning shadow-sm mb-4">
+        <i class="bi bi-info-circle-fill me-2"></i> <strong>Aviso do Sistema:</strong> Na raiz do módulo <strong>{{ titulo_base }}</strong> só é permitida a criação de pastas organizacionais. Acesse uma subpasta para poder liberar o envio de arquivos.
+    </div>
+{% endif %}
+
+<div id="zonaAcaoMassa" class="mb-3 d-none animate__animated animate__fadeIn">
+    <button type="button" id="btnExcluirSelecionados" class="btn btn-danger fw-bold shadow-sm">
+        <i class="bi bi-trash3-fill me-2"></i> Excluir Selecionados (<span id="contadorItensSelecionados">0</span>)
+    </button>
+</div>
+
 <div class="card p-4 shadow-sm">
     {% if resultados %}
         <div class="table-responsive">
             <table class="table table-striped table-hover align-middle">
                 <thead class="table-dark">
                     <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="selecionarTodosCheck" class="form-check-input">
+                        </th>
                         <th>Nome do Item</th>
                         <th>Tamanho</th>
                         <th class="text-end">Ações</th>
                     </tr>
                 </thead>
+
                 <tbody>
                     {% for item in resultados %}
                         <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input item-checkbox" value="{{ item.caminho }}">
+                            </td>
                             <td>
                                 {% if item.tipo == 'pasta' %}
                                     <i class="bi bi-folder-fill text-warning me-2"></i>
@@ -272,4 +332,130 @@
         </form>
     </div>
 </div>
+
+<script>
+    // Desativa a auto-descoberta global do Dropzone para usarmos a nossa configuração customizada
+    Dropzone.autoDiscover = false;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        var meuDropzone = new Dropzone("#meuDropzoneLayout", {
+            paramName: "file", // Nome do parâmetro do arquivo recebido pelo Django
+            maxFilesize: 20, // Tamanho máximo por arquivo em MB
+            parallelUploads: 3, // Quantos uploads processar simultaneamente
+            acceptedFiles: ".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif", // Extensões permitidas
+            dictInvalidFileType: "Tipo de arquivo não permitido.",
+            dictFileTooBig: "Arquivo muito grande (Máximo: 20MB).",
+            
+            // Evento disparado quando todos os arquivos da fila terminarem o upload
+            queuecomplete: function() {
+                // Dá um pequeno delay de 1 segundo e recarrega a página para atualizar a tabela de arquivos
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1000);
+            },
+            
+            // Trata erros vindos do servidor (como arquivo duplicado ou erro de segurança)
+            error: function(file, response) {
+                let mensagemErro = response.error ? response.error : response;
+                // Altera a mensagem visual do Dropzone no card do arquivo que falhou
+                let errorDisplay = file.previewElement.querySelector("[data-dz-errormessage]");
+                if (errorDisplay) {
+                    errorDisplay.textContent = mensagemErro;
+                }
+            }
+        });
+    });
+
+    // BOTÃO EXCLUIR SELECIONADOS
+    document.addEventListener("DOMContentLoaded", function() {
+        const selecionarTodos = document.getElementById("selecionarTodosCheck");
+        const checkboxes = document.querySelectorAll(".item-checkbox");
+        const zonaAcaoMassa = document.getElementById("zonaAcaoMassa");
+        const contador = document.getElementById("contadorItensSelecionados");
+        const btnExcluir = document.getElementById("btnExcluirSelecionados");
+
+        function atualizarInterfaceSelecao() {
+            const marcados = document.querySelectorAll(".item-checkbox:checked");
+            if (contador) contador.textContent = marcados.length;
+
+            if (marcados.length > 0) {
+                if (zonaAcaoMassa) zonaAcaoMassa.classList.remove("d-none");
+            } else {
+                if (zonaAcaoMassa) zonaAcaoMassa.classList.add("d-none");
+            }
+        }
+
+        if (selecionarTodos) {
+            selecionarTodos.addEventListener("change", function() {
+                checkboxes.forEach(cb => cb.checked = selecionarTodos.checked);
+                atualizarInterfaceSelecao();
+            });
+        }
+
+        checkboxes.forEach(cb => {
+            cb.addEventListener("change", atualizarInterfaceSelecao);
+        });
+
+        if (btnExcluir) {
+            btnExcluir.addEventListener("click", function() {
+                const marcados = document.querySelectorAll(".item-checkbox:checked");
+                let caminhos = [];
+                marcados.forEach(cb => caminhos.push(cb.value));
+
+                if (confirm(`Tem certeza que deseja mover esses ${marcados.length} itens selecionados para a lixeira?`)) {
+                    
+                    // --- TRAVA DE USABILIDADE: GUARDA TEXTO E ATIVA O SPINNER ---
+                    const textoOriginal = btnExcluir.innerHTML;
+                    btnExcluir.disabled = true;
+                    btnExcluir.innerHTML = `
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Processando lixeira...
+                    `;
+
+                    fetch('/navegar/excluir-multiplos-ajax/', {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": "{{ csrf_token }}"
+                        },
+                        body: JSON.stringify({ itens: caminhos })
+                    })
+                    .then(response => {
+                        // --- TRAVA DE SEGURANÇA: PEGA ERRO DE PERMISSÃO (403) ---
+                        if (response.status === 403) {
+                            throw new Error("Operação negada! Apenas administradores do GED podem mover itens para a lixeira.");
+                        }
+                        if (!response.ok) {
+                            throw new Error(`Erro do Servidor (Status ${response.status})`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            alert("Erro no processamento: " + data.error);
+                            // Restaura o botão se o servidor apontar erro de validação
+                            btnExcluir.disabled = false;
+                            btnExcluir.innerHTML = textoOriginal;
+                        } else if (data.erros > 0) {
+                            alert(`${data.message}\nÚltima falha registrada: ${data.detalhe_erro}`);
+                            window.location.reload();
+                        } else {
+                            alert(data.message);
+                            window.location.reload();
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Erro detalhado da requisição:", error);
+                        alert(error.message || "Falha de comunicação com o servidor.");
+                        
+                        // --- DESTRAVA O BOTÃO SE DER ERRO DE REDE OU PERMISSÃO ---
+                        btnExcluir.disabled = false;
+                        btnExcluir.innerHTML = textoOriginal;
+                    });
+                }
+            });
+        }
+    });
+</script>
 {% endblock conteudo %}
+

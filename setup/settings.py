@@ -1,3 +1,4 @@
+import os
 """
 Django settings for setup project.
 
@@ -118,6 +119,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 # Caminho base para os arquivos do GED (Simulação local)
-import os
+
 GED_BASE_DIR = r"C:\ged_teste\ged"

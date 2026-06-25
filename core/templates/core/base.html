@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="pt-br">
     <head>
@@ -57,8 +58,13 @@
             <div class="row">
                 <nav class="col-md-3 col-lg-2 d-md-block sidebar">
                     <div class="position-sticky">
-                        <div class="brand-title">
-                            <i class="bi bi-folder-fill me-2"></i>GED CRF-PB
+                        <div class="d-flex justify-content-center align-items-center w-100 px-3 pt-3 mb-4">
+                            <a href="{% url 'inicio' %}" class="d-block w-100 text-center">
+                                <img src="{% static 'core/img/logo-crfpb.png' %}" 
+                                    alt="Logo CRF-PB" 
+                                    class="img-fluid" 
+                                    style="max-height: 85px; width: auto; object-fit: contain; filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.1));">
+                            </a>
                         </div>
                         <ul class="nav flex-column mt-3">
                             <li class="nav-item">
@@ -132,8 +138,8 @@
                                 <li class="text-muted small px-3 mt-4 mb-1 text-uppercase">Painel ADM</li>
                                 
                                 <li class="nav-item">
-                                    <a class="nav-link py-2" href="/admin/core/logauditoria/">
-                                        <i class="bi bi-shield-check me-2"></i> Auditoria e Logs
+                                    <a href="{% url 'ver_auditoria' %}" class="nav-link text-white">
+                                        <i class="bi bi-shield-check me-2"></i> Auditoria
                                     </a>
                                 </li>
                                 <li class="nav-item">
