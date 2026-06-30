@@ -62,17 +62,28 @@ class LogAuditoria(models.Model):
         ('APAGAR', 'Mover para Lixeira'),
     ]
 
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Usuário")
-    acao = models.CharField(max_length=20, choices=ACOES_CHOICES, verbose_name="Ação")
-    descricao = models.TextField(verbose_name="Descrição do Evento")
-    data_hora = models.DateTimeField(auto_now_add=True, verbose_name="Data e Hora")
-    caminho_item = models.TextField(verbose_name="Caminho do Arquivo/Pasta", null=True, blank=True)
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, db_index=True)
+    acao = models.CharField(max_length=50, db_index=True) # Ex: 'UPLOAD', 'APAGAR'
+    data_hora = models.DateTimeField(auto_now_add=True, db_index=True)
+    descricao = models.CharField(max_length=255)
+    caminho_item = models.TextField()
+
 
     class Meta:
         verbose_name = "Log de Auditoria"
         verbose_name_plural = "Logs de Auditoria"
-        ordering = ['-data_hora'] # Mostra sempre os mais recentes primeiro
+        ordering = ['-data_hora']# Mostra sempre os mais recentes primeiro
 
     def __str__(self):
         user_str = self.usuario.username if self.usuario else "Sistema"
         return f"{user_str} - {self.get_acao_display()} ({self.data_hora.strftime('%d/%m/%Y %H:%M')})"
+    
+# 5. Registro de Lixeira    
+class RegistroLixeira(models.Model):
+    nome_na_lixeira = models.CharField(max_length=255)
+    caminho_original = models.CharField(max_length=1024)
+    data_exclusao = models.DateTimeField(auto_now_add=True)
+    apagado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        verbose_name = "Registro de Lixeira"

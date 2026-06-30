@@ -32,6 +32,8 @@
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+
+        <div id="mensagemContainer"></div>
     {% endfor %}
 {% endif %}
 
@@ -82,6 +84,28 @@
                     <option value="100" {% if por_pagina == 100 %}selected{% endif %}>100</option>
                 </select>
             </form>
+
+            <!-- Filtro de Ordenação -->
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-sort-alpha-down"></i> 
+                    {% if request.GET.ordem == 'za' %}Z-A{% else %}A-Z{% endif %}
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <a class="dropdown-item {% if request.GET.ordem != 'za' %}active{% endif %}" 
+                        href="?{% for key, value in request.GET.items %}{% if key != 'ordem' %}{{ key }}={{ value }}&{% endif %}{% endfor %}ordem=az">
+                        <i class="bi bi-sort-alpha-down"></i> Nome (A-Z)
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item {% if request.GET.ordem == 'za' %}active{% endif %}" 
+                        href="?{% for key, value in request.GET.items %}{% if key != 'ordem' %}{{ key }}={{ value }}&{% endif %}{% endfor %}ordem=za">
+                        <i class="bi bi-sort-alpha-down-alt"></i> Nome (Z-A)
+                        </a>
+                    </li>
+                </ul>
+            </div>
 
             {% if not usuario_esta_na_raiz %}
                 <button type="button" class="btn btn-primary text-white fw-bold btn-sm" data-bs-toggle="modal" data-bs-target="#modalUploadGeral">
@@ -262,12 +286,18 @@
                         {% endif %}
 
                         {% for num in resultados.paginator.page_range %}
-                            {% if resultados.number == num %}
-                                <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
-                            {% elif num > resultados.number|add:'-3' and num < resultados.number|add:'3' %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}{% if request.GET.pasta %}&pasta={{ request.GET.pasta|urlencode }}{% endif %}&por_pagina={{ por_pagina }}">{{ num }}</a>
+                            {% comment %} Mostra a página se for: atual, vizinhas, a primeira ou a última {% endcomment %}
+                            {% if num == resultados.number or num > resultados.number|add:'-5' and num < resultados.number|add:'6' or num == 1 or num == resultados.paginator.num_pages %}
+                                
+                                <li class="page-item {% if resultados.number == num %}active{% endif %}">
+                                    <a class="page-link" href="?page={{ num }}{% if request.GET.pasta %}&pasta={{ request.GET.pasta|urlencode }}{% endif %}&por_pagina={{ por_pagina }}">
+                                        {{ num }}
+                                    </a>
                                 </li>
+
+                            {% comment %} Opcional: Adiciona reticências (...) para indicar salto {% endcomment %}
+                            {% elif num == resultados.number|add:'-6' or num == resultados.number|add:'7' %}
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
                             {% endif %}
                         {% endfor %}
 
@@ -317,7 +347,8 @@
     <div class="modal-dialog">
         <form method="POST" action="{% url 'upload_arquivo_geral' %}" enctype="multipart/form-data">
             {% csrf_token %}
-            <input type="hidden" name="caminho_atual" value="{{ caminho_pasta_atual }}">
+            
+            <input type="hidden" name="caminho_destino" value="{{ caminho_pasta_atual }}">
             <input type="hidden" name="url_retorno" value="{{ request.get_full_path }}">
             
             <div class="modal-content">
@@ -326,7 +357,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="small text-muted">O arquivo será armazenado na subpasta atual do sistema.</p>
+                    <p class="small text-muted">O arquivo será armazenado na pasta: <strong>{{ caminho_pasta_atual|slice:":-20" }}...</strong></p>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Selecione o arquivo:</label>
                         <input type="file" class="form-control" name="arquivo" required>
@@ -334,11 +365,31 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Iniciar Upload</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitUpload">
+                        <i class="bi bi-cloud-arrow-up-fill"></i> Iniciar Upload
+                    </button>
                 </div>
             </div>
         </form>
     </div>
+</div>
+
+<div class="modal fade" id="modalConfirmacao" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirmar exclusão</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Tem certeza que deseja mover <strong id="qtdItensModal"></strong> item(s) selecionado(s) para a lixeira?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmarExclusao">Mover para Lixeira</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -381,88 +432,88 @@
         const zonaAcaoMassa = document.getElementById("zonaAcaoMassa");
         const contador = document.getElementById("contadorItensSelecionados");
         const btnExcluir = document.getElementById("btnExcluirSelecionados");
+        const btnConfirmarExclusao = document.getElementById("btnConfirmarExclusao");
+        const modalElement = document.getElementById("modalConfirmacao");
+        const modalBootstrap = new bootstrap.Modal(modalElement);
 
+        let caminhosParaExcluir = [];
+
+        // --- 1. FUNÇÕES DE INTERFACE ---
         function atualizarInterfaceSelecao() {
             const marcados = document.querySelectorAll(".item-checkbox:checked");
             if (contador) contador.textContent = marcados.length;
-
-            if (marcados.length > 0) {
-                if (zonaAcaoMassa) zonaAcaoMassa.classList.remove("d-none");
-            } else {
-                if (zonaAcaoMassa) zonaAcaoMassa.classList.add("d-none");
+            if (zonaAcaoMassa) {
+                marcados.length > 0 ? zonaAcaoMassa.classList.remove("d-none") : zonaAcaoMassa.classList.add("d-none");
             }
         }
 
+        // --- 2. EVENTOS DE SELEÇÃO ---
         if (selecionarTodos) {
             selecionarTodos.addEventListener("change", function() {
                 checkboxes.forEach(cb => cb.checked = selecionarTodos.checked);
                 atualizarInterfaceSelecao();
             });
         }
+        checkboxes.forEach(cb => cb.addEventListener("change", atualizarInterfaceSelecao));
 
-        checkboxes.forEach(cb => {
-            cb.addEventListener("change", atualizarInterfaceSelecao);
-        });
-
+        // --- 3. ABERTURA DO MODAL ---
         if (btnExcluir) {
             btnExcluir.addEventListener("click", function() {
                 const marcados = document.querySelectorAll(".item-checkbox:checked");
-                let caminhos = [];
-                marcados.forEach(cb => caminhos.push(cb.value));
-
-                if (confirm(`Tem certeza que deseja mover esses ${marcados.length} itens selecionados para a lixeira?`)) {
-                    
-                    // --- TRAVA DE USABILIDADE: GUARDA TEXTO E ATIVA O SPINNER ---
-                    const textoOriginal = btnExcluir.innerHTML;
-                    btnExcluir.disabled = true;
-                    btnExcluir.innerHTML = `
-                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Processando lixeira...
-                    `;
-
-                    fetch('/navegar/excluir-multiplos-ajax/', {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRFToken": "{{ csrf_token }}"
-                        },
-                        body: JSON.stringify({ itens: caminhos })
-                    })
-                    .then(response => {
-                        // --- TRAVA DE SEGURANÇA: PEGA ERRO DE PERMISSÃO (403) ---
-                        if (response.status === 403) {
-                            throw new Error("Operação negada! Apenas administradores do GED podem mover itens para a lixeira.");
-                        }
-                        if (!response.ok) {
-                            throw new Error(`Erro do Servidor (Status ${response.status})`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.error) {
-                            alert("Erro no processamento: " + data.error);
-                            // Restaura o botão se o servidor apontar erro de validação
-                            btnExcluir.disabled = false;
-                            btnExcluir.innerHTML = textoOriginal;
-                        } else if (data.erros > 0) {
-                            alert(`${data.message}\nÚltima falha registrada: ${data.detalhe_erro}`);
-                            window.location.reload();
-                        } else {
-                            alert(data.message);
-                            window.location.reload();
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Erro detalhado da requisição:", error);
-                        alert(error.message || "Falha de comunicação com o servidor.");
-                        
-                        // --- DESTRAVA O BOTÃO SE DER ERRO DE REDE OU PERMISSÃO ---
-                        btnExcluir.disabled = false;
-                        btnExcluir.innerHTML = textoOriginal;
-                    });
+                caminhosParaExcluir = Array.from(marcados).map(cb => cb.value);
+                
+                if (caminhosParaExcluir.length > 0) {
+                    document.getElementById('qtdItensModal').textContent = caminhosParaExcluir.length;
+                    modalBootstrap.show();
                 }
             });
         }
+
+        // --- 4. EXECUÇÃO DA EXCLUSÃO (DENTRO DO MODAL) ---
+        if (btnConfirmarExclusao) {
+            btnConfirmarExclusao.addEventListener("click", function() {
+                modalBootstrap.hide();
+                
+                const textoOriginal = btnExcluir.innerHTML;
+                btnExcluir.disabled = true;
+                btnExcluir.innerHTML = `
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Processando...
+                `;
+
+                fetch('/navegar/excluir-multiplos-ajax/', {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: JSON.stringify({ itens: caminhosParaExcluir })
+                })
+                .then(response => {
+                    if (response.status === 403) throw new Error("Operação negada!");
+                    if (!response.ok) throw new Error("Erro do Servidor");
+                    return response.json();
+                })
+                .then(data => {
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error(error);
+                    window.location.reload();
+                })
+                .finally(() => {
+                    btnExcluir.disabled = false;
+                    btnExcluir.innerHTML = textoOriginal;
+                });
+            });
+        }
+    });
+
+    //EVITAR CLIQUE DUPLO
+    document.getElementById('btnSubmitUpload').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Enviando...';
+        this.form.submit();
     });
 </script>
 {% endblock conteudo %}

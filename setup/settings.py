@@ -16,7 +16,7 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'ged_teste')
+MEDIA_ROOT = 'D:\\'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-dnru7txuun5qvy+%9ogms1_@5n-h(o(%^zd#ru093l6+e*q&*)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.25.27']
 
 
 # Application definition
@@ -106,9 +106,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'pt-br'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Recife'
 
 USE_I18N = True
 
@@ -122,6 +122,15 @@ STATIC_URL = 'static/'
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+
+LOGIN_URL = 'inicio'
+
 # Caminho base para os arquivos do GED (Simulação local)
 
-GED_BASE_DIR = r"C:\ged_teste\ged"
+GED_BASE_DIR = 'D:\\GED'
+SETORES_BASE_DIR = 'D:\\SETORES'
+LIXEIRA_DIR = r'D:\GED_LIXEIRA'
+

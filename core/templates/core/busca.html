@@ -2,7 +2,7 @@
 
 {% block conteudo %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Consultar Prontuário</h1>
+    <h1 class="h2">Consultar CRF</h1>
 </div>
 
 {% if messages %}
@@ -31,32 +31,26 @@
 {% if termo_busca %}
     {% if pasta_encontrada %}
         <div class="card p-4 shadow-sm">
-            <div class="row mb-4">
-                <div class="col-md-12">
-                    <div class="card bg-light border-secondary p-3">
-                        <div class="row align-items-center">
-                            <div class="col-md-8 border-end border-2">
-                                <form method="POST" action="{% url 'upload_arquivo' %}" enctype="multipart/form-data" class="row g-3 align-items-center">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="crf" value="{{ termo_busca }}">
-                                    <div class="col-md-9">
-                                        <label for="arquivo_novo" class="form-label fw-bold text-dark"><i class="bi bi-cloud-arrow-up-fill me-2"></i>Adicionar Documento</label>
-                                        <input type="file" class="form-control" id="arquivo_novo" name="arquivo_novo" required>
-                                    </div>
-                                    <div class="col-md-3 mt-md-4 pt-md-2">
-                                        <button type="submit" class="btn btn-success w-100">Enviar</button>
-                                    </div>
-                                </form>
-                            </div>
-                            
-                            <div class="col-md-4 text-center">
-                                <label class="form-label fw-bold text-dark d-block"><i class="bi bi-folder-plus me-2"></i>Organização</label>
-                                <button type="button" class="btn btn-warning w-75 mt-1" data-bs-toggle="modal" data-bs-target="#modalNovaPasta">
-                                    <i class="bi bi-folder-plus me-1"></i> Criar Subpasta
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+            <div class="d-flex justify-content-between mb-3">
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        Ordem: {% if ordem == 'za' %}Z-A{% else %}A-Z{% endif %}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="?crf={{termo_busca}}&ordem=az&por_pagina={{por_pagina}}">A-Z</a></li>
+                        <li><a class="dropdown-item" href="?crf={{termo_busca}}&ordem=za&por_pagina={{por_pagina}}">Z-A</a></li>
+                    </ul>
+                </div>
+
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        Exibir: {{ por_pagina }}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="?crf={{termo_busca}}&ordem={{ordem}}&por_pagina=25">25</a></li>
+                        <li><a class="dropdown-item" href="?crf={{termo_busca}}&ordem={{ordem}}&por_pagina=50">50</a></li>
+                        <li><a class="dropdown-item" href="?crf={{termo_busca}}&ordem={{ordem}}&por_pagina=100">100</a></li>
+                    </ul>
                 </div>
             </div>
 
@@ -84,7 +78,7 @@
                 </div>
             </div>
 
-            <h4 class="mb-3 text-secondary"><i class="bi bi-folder-opened me-2"></i>Documentos do CRF {{ termo_busca }}</h4>
+            <h4 class="mb-3 text-secondary"><i class="bi bi-folder-opened me-2"></i>Busca por: {{ termo_busca }}</h4>
             
             {% if resultados %}
                 <div class="table-responsive">
@@ -97,26 +91,15 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for arquivo in resultados %}
+                            {% for item in resultados %}
                                 <tr>
                                     <td>
-                                        {% if arquivo.tipo == 'pasta' %}
-                                            <i class="bi bi-folder-fill text-warning me-2"></i><strong>{{ arquivo.nome }}</strong>
-                                        {% elif arquivo.tipo == 'pdf' %}
-                                            <span class="text-dark">
-                                                <i class="bi bi-file-earmark-pdf text-danger me-1"></i> {{ arquivo.nome }}
-                                            </span>
-                                        {% elif arquivo.tipo == 'excel' %}
-                                            <i class="bi bi-file-earmark-excel-fill text-success me-2"></i>{{ arquivo.nome }}
-                                        {% elif arquivo.tipo == 'word' %}
-                                            <i class="bi bi-file-earmark-word-fill text-primary me-2"></i>{{ arquivo.nome }}
-                                        {% elif arquivo.tipo == 'imagem' %}
-                                            <i class="bi bi-file-earmark-image-fill text-info me-2"></i>{{ arquivo.nome }}
-                                        {% else %}
-                                            <i class="bi bi-file-earmark-fill text-secondary me-2"></i>{{ arquivo.nome }}
-                                        {% endif %}
+                                        <a href="{% url 'navegar_pastas' item.modulo %}?pasta={{ item.caminho|urlencode }}" class="text-decoration-none">
+                                            <i class="bi bi-folder-fill text-warning me-2"></i>
+                                            <span class="badge bg-secondary me-2">{{ item.label }}</span> <strong>{{ item.nome }}</strong>
+                                        </a>
                                     </td>
-                                    <td>{{ arquivo.tamanho }}</td>
+                                    
                                     <td class="text-end">
                                         <a href="javascript:void(0);" 
                                             class="btn-visualizar-pdf btn btn-sm btn-outline-primary" 
@@ -190,6 +173,31 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    <nav aria-label="Navegação">
+                        <ul class="pagination justify-content-center">
+                            {% if resultados.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?crf={{termo_busca}}&page={{resultados.previous_page_number}}&ordem={{ordem}}&por_pagina={{por_pagina}}">&laquo;</a>
+                                </li>
+                            {% endif %}
+
+                            {% for num in resultados.paginator.page_range %}
+                                {% if resultados.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?crf={{termo_busca}}&page={{num}}&ordem={{ordem}}&por_pagina={{por_pagina}}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if resultados.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?crf={{termo_busca}}&page={{resultados.next_page_number}}&ordem={{ordem}}&por_pagina={{por_pagina}}">&raquo;</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
                 </div>
             {% else %}
                 <div class="alert alert-warning mb-0">A pasta do CRF existe, mas está vazia.</div>

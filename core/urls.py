@@ -5,6 +5,7 @@ urlpatterns = [
     path('navegar/excluir-multiplos-ajax/', views.excluir_multiplos_ajax, name='excluir_multiplos_ajax'),
     path('navegar/<str:modulo>/', views.navegar_pastas, name='navegar_pastas'),
     path('', views.inicio, name='inicio'),
+    path('inicio/', views.pagina_inicial_direcionamento, name='inicio_sistema'),
     path('busca/', views.busca_crf, name='busca_crf'),
     path('visualizar/', views.visualizar_arquivo, name='visualizar_arquivo'), 
     path('baixar/', views.baixar_arquivo, name='baixar_arquivo'), 
@@ -18,5 +19,5 @@ urlpatterns = [
     path('lixeira/esvaziar/', views.esvaziar_lixeira, name='esvaziar_lixeira'),
     path('auditoria/', views.ver_auditoria, name='ver_auditoria'),
     path('upload-multiplo-ajax/', views.upload_multiplo_ajax, name='upload_multiplo_ajax'),
-    path('', views.pagina_inicial_direcionamento, name='inicio_sistema'),
+    path('auditoria/exportar/', views.exportar_auditoria, name='exportar_auditoria'),
 ]
