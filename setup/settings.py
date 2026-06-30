@@ -1,4 +1,7 @@
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
 """
 Django settings for setup project.
 
@@ -11,7 +14,19 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-from pathlib import Path
+# Define a pasta raiz do projeto (onde está o manage.py)
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Carrega o arquivo .env explicitamente pelo caminho absoluto
+dotenv_path = os.path.join(BASE_DIR, '.env')
+load_dotenv(dotenv_path)
+
+# Pega a chave do ambiente
+SECRET_KEY = os.getenv('SECRET_KEY')
+
+# Verificação de segurança (isso vai te avisar no log se a chave estiver vazia)
+if not SECRET_KEY:
+    raise ImproperlyConfigured("ERRO: A variável SECRET_KEY não foi carregada. Verifique o arquivo .env em " + str(dotenv_path))
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,13 +36,11 @@ MEDIA_ROOT = 'D:\\'
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-dnru7txuun5qvy+%9ogms1_@5n-h(o(%^zd#ru093l6+e*q&*)'
-
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.25.27']
+# settings.py
+ALLOWED_HOSTS = ['ti-pc02', 'ged-crfpb', '192.168.25.27', 'localhost']
 
 
 # Application definition
@@ -45,6 +58,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

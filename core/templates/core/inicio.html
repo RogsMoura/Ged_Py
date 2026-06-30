@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load static %}
 
 {% block conteudo %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -23,8 +24,12 @@
                         <div class="card-body d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex align-items-center mb-2">
-                                    <i class="bi bi-database-fill text-primary fs-3 me-2"></i>
-                                    <h5 class="card-title mb-0 fw-bold text-dark">SAGICON</h5>
+                                    <img src="{% static 'core/img/logo-sagicon.png' %}" 
+                                        alt="Logo SAGICON" 
+                                        class="me-2" 
+                                        style="width: 32px; height: 32px; object-fit: contain;">
+                                    
+                                    <h5 class="card-title mb-0 fw-bold text-dark">Sagicon</h5>
                                 </div>
                                 <p class="card-text text-muted small">Gerenciamento de cadastros, relatórios institucionais e dados do conselho.</p>
                             </div>
@@ -40,8 +45,12 @@
                         <div class="card-body d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex align-items-center mb-2">
-                                    <i class="bi bi-house-gear-fill text-success fs-3 me-2"></i>
-                                    <h5 class="card-title mb-0 fw-bold text-dark">CRF-PB em Casa</h5>
+                                    <img src="{% static 'core/img/icon-crfpb.png' %}" 
+                                        alt="Logo SAGICON" 
+                                        class="me-2" 
+                                        style="width: 32px; height: 32px; object-fit: contain;">
+                                    
+                                    <h5 class="card-title mb-0 fw-bold text-dark">CRF-PB em casa</h5>
                                 </div>
                                 <p class="card-text text-muted small">Portal do farmacêutico para autoatendimento, emissão de certidões e serviços online.</p>
                             </div>
@@ -57,7 +66,11 @@
                         <div class="card-body d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex align-items-center mb-2">
-                                    <i class="bi bi-file-earmark-text-fill text-info fs-3 me-2"></i>
+                                    <img src="{% static 'core/img/logo-cff.png' %}" 
+                                        alt="Logo SAGICON" 
+                                        class="me-2" 
+                                        style="width: 32px; height: 32px; object-fit: contain;">
+                                    
                                     <h5 class="card-title mb-0 fw-bold text-dark">SEI (CFF)</h5>
                                 </div>
                                 <p class="card-text text-muted small">Sistema Eletrônico de Informações para processos administrativos e documentos oficiais.</p>
@@ -125,12 +138,58 @@
                         <div class="card-body d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex align-items-center mb-2">
-                                    <i class="bi bi-globe text-purple fs-3 me-2" style="color: #6610f2;"></i>
+                                    <img src="{% static 'core/img/icon-crfpb.png' %}" 
+                                        alt="Logo SAGICON" 
+                                        class="me-2" 
+                                        style="width: 32px; height: 32px; object-fit: contain;">
+                                    
                                     <h5 class="card-title mb-0 fw-bold text-dark">Site Institucional</h5>
                                 </div>
                                 <p class="card-text text-muted small">Portal oficial do CRF-PB para notícias, transparência e publicações de editais.</p>
                             </div>
                             <a href="https://www.crfpb.org.br/" target="_blank" class="btn btn-outline-purple btn-sm w-100 fw-bold mt-3 stretched-link" style="color: #6610f2; border-color: #6610f2;">
+                                Visitar Site <i class="bi bi-box-arrow-up-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 col-sm-6">
+                    <div class="card h-100 shadow-sm border-0 position-relative" style="border-left: 4px solid #FF8200 !important;">
+                        <div class="card-body d-flex flex-column justify-content-between">
+                            <div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <img src="{% static 'core/img/logo-implanta.png' %}" 
+                                        alt="Logo SAGICON" 
+                                        class="me-2" 
+                                        style="width: 32px; height: 32px; object-fit: contain;">
+                                    
+                                    <h5 class="card-title mb-0 fw-bold text-dark">Implanta</h5>
+                                </div>
+                                <p class="card-text text-muted small">Soluções inteligentes para o Conselhos Regional de Farmácia da Paraíba</p>
+                            </div>
+                            <a href="https://crf-pb.implanta.net.br/" target="_blank" class="btn btn-outline-purple btn-sm w-100 fw-bold mt-3 stretched-link" style="color: #FF8200; border-color: #FF8200;">
+                                Visitar Site <i class="bi bi-box-arrow-up-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 col-sm-6">
+                    <div class="card h-100 shadow-sm border-0 position-relative" style="border-left: 4px solid #837B00 !important;">
+                        <div class="card-body d-flex flex-column justify-content-between">
+                            <div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <img src="{% static 'core/img/icon-crfpb.png' %}" 
+                                        alt="Logo SAGICON" 
+                                        class="me-2" 
+                                        style="width: 32px; height: 32px; object-fit: contain;">
+                                    
+                                    <h5 class="card-title mb-0 fw-bold text-dark">Abertura de chamados T.I</h5>
+                                </div>
+                                <p class="card-text text-muted small">Formulário para chamados internos ao setor da T.I</p>
+                            </div>
+                            <a href="https://forms.gle/ogEStJH9QgMrQc228" target="_blank" class="btn btn-outline-purple btn-sm w-100 fw-bold mt-3 stretched-link" style="color: #837B00; border-color: #837B00;">
                                 Visitar Site <i class="bi bi-box-arrow-up-right ms-1"></i>
                             </a>
                         </div>
